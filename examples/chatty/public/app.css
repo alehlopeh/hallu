@@ -1,0 +1,317 @@
+:root {
+  --bg: #f7f7f5;
+  --surface: #ffffff;
+  --ink: #1f1d1b;
+  --muted: #8d8881;
+  --line: #e7e4de;
+  --sidebar: #f0eee9;
+  --accent: #b5532c;
+  --accent-ink: #fff;
+  --assistant: #efece6;
+  --shadow: 0 1px 2px rgba(31, 29, 27, 0.05), 0 12px 28px -22px rgba(31, 29, 27, 0.35);
+  --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--ink);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* full-window flex shell */
+#hallu-root {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+}
+
+.chat-layout {
+  display: flex;
+  height: 100%;
+}
+
+/* sidebar - conversation list */
+.sidebar {
+  width: 264px;
+  flex: 0 0 264px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  background: var(--sidebar);
+  border-right: 1px solid var(--line);
+  overflow-y: auto;
+}
+
+.sidebar-brand {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--ink);
+  padding: 6px 4px 12px;
+  letter-spacing: -0.01em;
+}
+
+.new-chat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  margin-bottom: 8px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  text-decoration: none;
+  box-shadow: var(--shadow);
+  transition: border-color 0.12s, transform 0.06s;
+}
+
+.new-chat::before {
+  content: "+";
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.new-chat:hover {
+  border-color: #d6cdbd;
+  transform: translateY(-1px);
+}
+
+.conv-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.conv-item {
+  display: block;
+  padding: 9px 12px;
+  font-size: 0.9rem;
+  color: var(--ink);
+  text-decoration: none;
+  border-radius: 9px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 0.12s;
+}
+
+.conv-item:hover {
+  background: rgba(0, 0, 0, 0.045);
+}
+
+.conv-item.active {
+  background: rgba(181, 83, 44, 0.12);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* sidebar footer: signed-in user + logout, pinned to the bottom */
+.sidebar-foot {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 0.82rem;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sidebar-foot a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.sidebar-foot a:hover {
+  text-decoration: underline;
+}
+
+/* chat panel */
+.chat-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100%;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 32px 48px;
+  width: 100%;
+}
+
+.empty-chat {
+  margin: auto; /* center in the empty transcript (flex column) */
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* "/" new-chat state: empty prompt + composer centered in the panel */
+.chat-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  padding: 24px;
+}
+
+.chat-empty .composer {
+  border-top: none;
+  background: none;
+  padding: 0;
+  width: 100%;
+  max-width: 640px;
+}
+
+/* message rows - user right, assistant left. Rows sit in a centered column so the
+   scroll container can be full-width (scrollbar at the window edge) while bubbles stay readable. */
+.msg {
+  display: flex;
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.msg-user {
+  justify-content: flex-end;
+}
+
+.msg-assistant {
+  justify-content: flex-start;
+}
+
+.bubble {
+  max-width: 78%;
+  padding: 11px 15px;
+  border-radius: 16px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.96rem;
+}
+
+.msg-user .bubble {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-bottom-right-radius: 5px;
+}
+
+.msg-assistant .bubble {
+  background: var(--assistant);
+  color: var(--ink);
+  border-bottom-left-radius: 5px;
+}
+
+.bubble pre {
+  margin: 8px 0 2px;
+  padding: 12px 14px;
+  background: #1f1d1b;
+  color: #f3efe7;
+  border-radius: 10px;
+  overflow-x: auto;
+  font-size: 0.85rem;
+}
+
+.bubble code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* composer - pinned to the bottom of the chat panel */
+.composer {
+  display: flex;
+  gap: 10px;
+  padding: 16px 0 22px;
+  width: 100%;
+  margin: 0 auto;
+  border-top: 1px solid var(--line);
+  background: linear-gradient(to top, var(--bg) 70%, transparent);
+}
+
+.composer-inner {
+  flex: 1;
+  max-width: 760px;
+  margin: 0 auto;
+  display: flex;
+  height: 40px;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.composer-input {
+  display: flex;
+  flex: 1;
+  padding: 10px;
+  font-size: 0.96rem;
+  font-family: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.composer-input::placeholder {
+  color: #b6ae9f;
+}
+
+.composer-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(181, 83, 44, 0.14);
+}
+
+.send {
+  padding: 0 20px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--accent-ink);
+  background: var(--ink);
+  border: 1px solid var(--ink);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.06s;
+}
+
+.send:hover {
+  background: #000;
+}
+
+.send:active {
+  transform: translateY(1px);
+}
+
+.send:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.empty {
+  color: var(--muted);
+  font-size: 0.86rem;
+  padding: 8px 12px;
+}

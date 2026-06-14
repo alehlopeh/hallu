@@ -1,0 +1,32 @@
+{
+  "name": "hallujs",
+  "version": "0.0.1",
+  "description": "A web framework where an LLM is the entire backend: you define the tables, it renders every page.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "hallu": "./src/cli.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": ["src"],
+  "scripts": {
+    "test": "bun test",
+    "security": "bun run scripts/security-check.ts",
+    "sqli": "bun run scripts/sql-injection-check.ts"
+  },
+  "engines": {
+    "bun": ">=1.1.0"
+  },
+  "dependencies": {
+    "ai": "^6.0.205",
+    "hono": "^4.6.0",
+    "node-html-parser": "^6.1.13",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@ai-sdk/anthropic": "^3.0.84",
+    "@types/bun": "latest"
+  }
+}

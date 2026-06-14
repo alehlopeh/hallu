@@ -1,0 +1,11 @@
+{
+  "name": "hallu-example-chatty",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "hallu dev"
+  },
+  "dependencies": {
+    "hallujs": "^0.0.1"
+  }
+}

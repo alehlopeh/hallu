@@ -1,0 +1,21 @@
+# dependencies
+node_modules/
+
+# SQLite databases (app data, including per-account files and WAL sidecars)
+*.db
+*.db-wal
+*.db-shm
+data/
+
+# secrets / local env (keep .env.example if you add one)
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+
+# OS
+.DS_Store
+
+.playwright-mcp/

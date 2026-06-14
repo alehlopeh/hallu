@@ -1,0 +1,11 @@
+{
+  "name": "hallu-example-autocrud",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "hallu dev --hot"
+  },
+  "dependencies": {
+    "hallujs": "^0.0.1"
+  }
+}

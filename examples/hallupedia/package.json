@@ -1,0 +1,11 @@
+{
+  "name": "hallu-example-hallupedia",
+  "private": true,
+  "scripts": {
+    "dev": "hallu dev"
+  },
+  "type": "module",
+  "dependencies": {
+    "hallujs": "^0.0.1"
+  }
+}
