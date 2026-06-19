@@ -26,6 +26,9 @@ Built on Bun + Hono. SQLite by default, Postgres optional. Bring your own model.
   loop.
 - **Wire format.** Actions stream back `<hallu-update target="id">...</hallu-update>` blocks.
   The client swaps each region in by id. It feels like an SPA.
+- **Streaming.** With `streamResponses`, an action streams text into a container through a
+  `stream` tool. The framework appends your wrapper markup, fills it as tokens arrive, and
+  fires a `hallu:finalize` event at the end. Chatty runs on this.
 - **Caching.** Rendered pages are cached per path so warm loads skip the model. A DB write
   invalidates affected pages (coarse by default, or scoped with a glob).
 - **Two schema modes.** Fixed (`tables` is the whole schema) or `autoSchema` (the model
@@ -63,6 +66,10 @@ echo "ANTHROPIC_API_KEY=sk-ant-..." > .env
 bun dev
 ```
 
+`generate` takes flags for the backend and provider: `--postgres`, and `--anthropic`
+(default) / `--openai` / `--ollama`. So `generate myapp --postgres --ollama` gives you a
+Postgres app on a local Ollama model.
+
 ## Caveats
 
 - **It's slow.** A page is a model call, sometimes several. Pages take ~2s to load on Haiku.
@@ -90,6 +97,8 @@ bun test        # offline: runs against a stubbed model, fast and deterministic
 | `name` | `string` |  | App name; document `<title>`. |
 | `description` | `string` |  | The domain, data, and rules in prose. |
 | `model` | `LanguageModel` |  | Any AI SDK model, e.g. `anthropic("claude-opus-4-8")`. |
+| `providerOptions` | `ProviderOptions` |  | Provider-specific request options forwarded on every call, keyed by provider id (e.g. reasoning/thinking). |
+| `streamResponses` | `{ container, wrapper }` |  | Let an action stream text token-by-token into `container`, wrapped in `wrapper`. Fires `hallu:finalize` when done. |
 | `tables` | `Record<string, Record<string, string>>` | `{}` | Schema as `{ table: { column: "<sql type>" } }`, created on boot. |
 | `autoSchema` | `boolean` | `false` | Let the model `CREATE` tables/FKs on the fly; else DDL is forbidden. |
 | `addFields` | `boolean` | `false` | "Add field" control that runs `ALTER TABLE ADD COLUMN`. |
