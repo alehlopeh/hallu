@@ -8,19 +8,25 @@ export default defineConfig({
 
   database: { driver: "postgres", url: process.env.HALLU_PG_URL ?? "postgres://localhost:5432/slop_overflow" },
 
-  description: `A question-and-answer website for programmers, where users post coding problems and others post answers.
+  description: `A question-and-answer website for programmers: users post coding problems (questions) and others post answers. The records are questions, answers, votes, tags, and users. Every question title, tag name, and user name rendered anywhere is an <a> link to that record's page: /questions/<id>, /tags/<tag>, /users/<id>.
 
-The home page lists questions, each linking to its own page that shows the question and all of its answers. Anyone can post a new question or add an answer to an existing question.
+Score: each question and each answer has a score equal to the count of its up-vote rows minus the count of its down-vote rows. Compute it on each read by counting vote rows.
 
-Asking a question: the "Ask Question" page is a form with a title, a body (the problem, including any code), and a tags input - a single text field where the user types one or more short tags separated by spaces or commas (like python, postgres, react). On submit, save the question and its tags, then send the browser straight to that new question's own page, so the user lands on what they just posted rather than back on the home list.
+Home page (/): first an <a class="btn btn-primary" href="/questions/ask">Ask Question</a> and an <a href="/tags">Tags</a>, then a <ul class="list"> of every question ordered by score descending. Each question is an <li class="list-item"> showing: its title as an <a> to /questions/<id>, its score, its number of answers, its tag names (each an <a> to /tags/<tag>), and its asker's name as an <a> to /users/<id> with the asked date.
 
-Tags: a question has zero or more tags. Show them as small labels on each question, both in the home list and on the question's page. A tag label links to a page that lists the questions carrying that tag.
+Ask Question page (/questions/ask): a <form> with a text <input> for the title, a <textarea> for the body, and a text <input> for tags. Split the tags input on commas and trim each piece; every non-empty piece is one tag (so "python, data structures" produces two tags: "python" and "data structures"). On submit, insert the question and its tags, render that new question's page, and set the URL to /questions/<id>.
 
-Answering: a question's page has an answer form (a body field) at the bottom. Posting an answer attaches it to that question and keeps the user on the same question page, with the new answer shown in place.
+Question page (/questions/<id>): render the question as a <div class="card"> showing its title, body, tag links (each an <a> to /tags/<tag>), asker name (an <a> to /users/<id>), asked date, score, and a vote widget. Then a <ul class="list"> of its answers ordered by score descending, each answer an <li class="card"> showing its body, author name (an <a> to /users/<id>), date, score, and a vote widget. Then a <form> with a <textarea> body field to post an answer: on submit, insert the answer for this question, render the updated question page, and set the URL to /questions/<id>.
 
-Voting is the core mechanic. Both questions and answers can be voted up or down. Render an up-vote and a down-vote control next to each item with its score - up-votes minus down-votes - shown between them. Record each vote as its own row tied to the user who cast it, the item it targets, and its direction; compute an item's score by summing its votes, and don't keep a denormalized counter.
+Vote widget: beside each question or answer, render an up-vote <form> with one submit button, the score as a number, and a down-vote <form> with one submit button, in that order. A vote row records the voter, the target item's id, the target type (question or answer), and a direction of up or down. A user has at most one vote per item. On submit: if the user has no vote on that item insert one; if they have a vote in the same direction delete it; if they have a vote in the opposite direction update its direction.
 
-A user gets at most one vote per question and at most one vote per answer. Casting a vote where one already exists replaces it - voting the opposite way flips the direction, and voting the same way again removes it - so a user can never stack multiple votes on the same item. Sort answers on a question's page by score, highest first, so the best answer rises to the top, and sort the home page's questions by score as well.`,
+Tag index (/tags): a <ul class="list"> of every tag, each an <li class="list-item"> with the tag name as an <a> to /tags/<tag> and the count of questions carrying it.
+
+Tag page (/tags/<tag>): a <ul class="list"> of the questions carrying that tag ordered by score descending, each an <li class="list-item"> showing the title as an <a> to /questions/<id>, its score, its number of answers, and its asker name as an <a> to /users/<id>.
+
+User profile (/users/<id>): the user's name, their total score (the sum of the scores of every question and answer they wrote), then a <ul class="list"> of the questions they asked (each title an <a> to /questions/<id>) and a <ul class="list"> of the answers they wrote, each shown as the first 80 characters of the answer body as an <a> to the /questions/<id> it belongs to.
+
+Render code inside any question or answer body in a <pre> block to preserve whitespace.`,
 
   head: `<link rel="stylesheet" href="/app.css">`,
   static: "./public",

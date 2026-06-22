@@ -81,8 +81,9 @@ test("stream tool: framework opens an app wrapper in the container, streams text
   expect(body).toContain('<hallu-append target="messages">');
   expect(body.indexOf("msg-user")).toBeLessThan(body.indexOf("hallu-stream-open"));
 
-  // The framework opens the response with the app's container + wrapper.
-  expect(body).toContain('<hallu-stream-open container="messages"><div class="msg msg-assistant"><div class="bubble"></div></div></hallu-stream-open>');
+  // The framework opens the response with the app's container + wrapper. html="0" = deltas render as
+  // literal text (this app doesn't set streamResponses.html).
+  expect(body).toContain('<hallu-stream-open container="messages" html="0"><div class="msg msg-assistant"><div class="bubble"></div></div></hallu-stream-open>');
 
   // The tool input arrives as stream-delta frames; concatenated = the full reply.
   const said = [...body.matchAll(/<hallu-stream-delta>(.*?)<\/hallu-stream-delta>/g)].map((m) => m[1]).join("");

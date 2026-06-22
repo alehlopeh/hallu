@@ -1,0 +1,12 @@
+{
+  "name": "hallu-example-neuromud",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "hallu dev --hot",
+    "db:clear": "bun -e \"const{rmSync}=require('fs');['data/world.db','data/world.db-wal','data/world.db-shm'].forEach(f=>rmSync(f,{force:true}))\""
+  },
+  "dependencies": {
+    "hallujs": "file:../.."
+  }
+}

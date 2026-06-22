@@ -16,6 +16,12 @@ export function openDb(config: SqliteConfig, path: string = config.database?.pat
   for (const [table, columns] of Object.entries(config.tables ?? {})) {
     db.run(createTableSql(table, columns));
   }
+  // Framework table holding page-chat edits (glob + instruction), re-applied on every matching render.
+  if (config.pageChat) {
+    db.run(
+      "CREATE TABLE IF NOT EXISTS hallu_pages (id integer primary key autoincrement, glob text not null, instruction text not null, created_at text not null default current_timestamp);",
+    );
+  }
   if ((fresh || path === ":memory:") && config.seed) config.seed(db);
   return db;
 }
@@ -41,7 +47,15 @@ export function liveSchema(db: Database): string {
   return rows.map((r) => `${r.sql};`).join("\n\n");
 }
 
-const READ_RE = /^\s*(select|with|pragma|explain)\b/i;
+// DDL changes the schema without touching rows, so total_changes won't move for it; match it by
+// keyword (DDL can't hide behind a CTE the way DML can). Everything else - including a row-mutating
+// `WITH ... INSERT/UPDATE/DELETE` that a leading-keyword check would misread as a read - is detected
+// by whether it actually changed any rows.
+const DDL_RE = /^\s*(create|alter|drop|truncate|reindex|vacuum)\b/i;
+
+function totalChanges(db: Database): number {
+  return (db.query("SELECT total_changes() AS c").get() as { c: number }).c;
+}
 
 /** Runs one statement the model generated. Returns rows as JSON, or an error to retry against. */
 export function runSql(db: Database, query: string): SqlOk | SqlErr {
@@ -49,18 +63,24 @@ export function runSql(db: Database, query: string): SqlOk | SqlErr {
   if (!q) return { ok: false, message: "Empty query." };
 
   try {
-    if (READ_RE.test(q)) {
-      const rows = db.query(q).all() as unknown[];
-      const capped = rows.slice(0, MAX_ROWS);
-      const note = rows.length > MAX_ROWS ? ` (showing first ${MAX_ROWS} of ${rows.length})` : "";
-      return { ok: true, mutated: false, json: `${rows.length} row(s)${note}: ${JSON.stringify(capped)}` };
+    // `.all()` executes any statement (reads return rows; writes/DDL return [] or RETURNING rows).
+    const before = totalChanges(db);
+    const rows = db.query(q).all() as unknown[];
+    const mutated = totalChanges(db) !== before || DDL_RE.test(q);
+
+    if (mutated) {
+      const changes = (db.query("SELECT changes() AS c").get() as { c: number }).c;
+      const lastInsertRowid = Number((db.query("SELECT last_insert_rowid() AS id").get() as { id: number }).id);
+      // Surface RETURNING rows when the statement produced any; otherwise just the write summary.
+      const json = rows.length
+        ? JSON.stringify({ changes, rows: rows.slice(0, MAX_ROWS) })
+        : JSON.stringify({ changes, last_insert_rowid: lastInsertRowid });
+      return { ok: true, mutated: true, json };
     }
-    const { changes, lastInsertRowid } = db.run(q);
-    return {
-      ok: true,
-      mutated: true,
-      json: JSON.stringify({ changes, last_insert_rowid: Number(lastInsertRowid) }),
-    };
+
+    const capped = rows.slice(0, MAX_ROWS);
+    const note = rows.length > MAX_ROWS ? ` (showing first ${MAX_ROWS} of ${rows.length})` : "";
+    return { ok: true, mutated: false, json: `${rows.length} row(s)${note}: ${JSON.stringify(capped)}` };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : String(err) };
   }
@@ -96,6 +116,12 @@ class SqliteConn implements Conn {
   }
   async schema() {
     return liveSchema(this.db);
+  }
+  async readRows(query: string) {
+    return this.db.query(query).all() as Record<string, unknown>[];
+  }
+  async savePageEdit(glob: string, instruction: string) {
+    this.db.run("INSERT INTO hallu_pages (glob, instruction) VALUES (?, ?)", [glob, instruction]);
   }
   release() {} // the handle is cached and reused; nothing to return
 }

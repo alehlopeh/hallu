@@ -3,7 +3,7 @@
 import type { Database } from "bun:sqlite";
 import type { SQL } from "bun";
 import type { Context, Hono } from "hono";
-import type { LanguageModel } from "ai";
+import type { LanguageModel, ToolSet } from "ai";
 import type { ProviderOptions } from "@ai-sdk/provider-utils";
 import type { LogLevel } from "./log.ts";
 
@@ -18,6 +18,15 @@ export interface Tenant {
    */
   context?: string;
 }
+
+/**
+ * Run one SQL statement against the current request's database. Reads return the rows (as the built-in
+ * `sql` tool returns them); writes are tracked so the page cache and `afterWrite` still fire. Throws on a
+ * SQL error.
+ */
+export type ToolContext = { sql: (query: string) => Promise<unknown> };
+/** Builds the app's extra model tools for one request. See `tools` on the config. */
+export type ToolFactory = (ctx: ToolContext) => ToolSet;
 
 /** Shared config - everything independent of which database backend you pick. */
 export interface BaseConfig {
@@ -52,6 +61,14 @@ export interface BaseConfig {
   /** Directory served at the web root (for your CSS, fonts, images). Relative to cwd. */
   static?: string;
   /**
+   * Ship the framework's default busy indicator CSS - a thin top progress bar plus a dim of the content
+   * (`#hallu-root`) while an action renders. Default true. Set false to suppress it entirely and style the
+   * loading state yourself: the framework always toggles the `hallu-busy` (action in flight) and
+   * `hallu-patched` (content swapped in, response still streaming) classes on `<body>`, so supply your own
+   * rules for them in your stylesheet.
+   */
+  busyIndicator?: boolean;
+  /**
    * Self-extending schema. When true, the model may CREATE new tables and
    * foreign-key relationships on the fly for a path whose data has no table yet
    * - so features materialize just by visiting. When false (default), the schema
@@ -71,6 +88,13 @@ export interface BaseConfig {
    * COLUMN. Lets users grow a table's shape from the UI. Default false.
    */
   addFields?: boolean;
+  /**
+   * Show a floating control that opens a small chat panel for editing the page by instruction. The user
+   * types a request to change the page they are on; the framework sends that page's current HTML plus the
+   * request to the model, which revises the page and swaps the new version in place. The revision is cached
+   * so a reload keeps it. Framework chrome, injected outside the swappable content. Default false.
+   */
+  pageChat?: boolean;
   /**
    * Whitelist of allowed path patterns. Glob: `*` matches one path segment, `**` matches
    * any. e.g. `["/", "/lists", "/lists/*", "/admin/**"]`. When set, a request to a path that
@@ -131,6 +155,14 @@ export interface BaseConfig {
    */
   providerOptions?: ProviderOptions;
   /**
+   * Extra tools handed to the model alongside the built-in `sql` (and `stream`) tools, on every render
+   * and action. A factory called once per request; from a tool's `execute`, use the provided `sql`
+   * runner to read or write this request's database. Define tools with the AI SDK `tool()` helper
+   * (re-exported from this package). e.g. a "room snapshot" tool that returns a row plus its related
+   * rows in one call, collapsing several model round-trips into one.
+   */
+  tools?: ToolFactory;
+  /**
    * Let the model STREAM text into the page during a form (POST) action via a `stream` tool. The model
    * just calls `stream({ text })` - the framework renders it: on the first token it appends `wrapper`
    * (your markup) to the element with id `container`, then streams the text token-by-token into that
@@ -139,12 +171,23 @@ export interface BaseConfig {
    *
    *   streamResponses: { container: "messages", wrapper: '<div class="bubble"></div>' }
    *
+   * By default the streamed text is rendered LITERALLY (markup is escaped). Set `html: true` to let the
+   * model stream HTML that the framework renders live: deltas are parsed as they arrive (the browser
+   * auto-closes partial tags, so it renders progressively). Only enable this where you trust the model's
+   * markup - it runs in the page, like the raw HTML the model already returns in `<hallu-update>` blocks.
+   *
    * When a stream ends, the framework fires a `"hallu:finalize"` DOM event on `document` so apps can
    * react (e.g. scroll the container to the bottom).
    */
-  streamResponses?: { container: string; wrapper: string };
+  streamResponses?: { container: string; wrapper: string; html?: boolean };
   /** Sampling temperature. Default 0.35. */
   temperature?: number;
+  /**
+   * Max tool-loop steps per render/action before the framework gives up (a guard against runaway
+   * loops). Default 8 - enough for read-then-render and simple writes. Raise it for apps that make
+   * many SQL calls in one render (e.g. a world that queries neighbours and writes several rows a visit).
+   */
+  maxSteps?: number;
   /** Port to listen on. Default: env PORT or 7777. */
   port?: number;
   /** Log verbosity. "debug" (default) also logs every executed SQL statement; "info" omits SQL; "silent" is quiet. */
@@ -211,3 +254,7 @@ export function defineConfig(config: HalluConfig): HalluConfig {
 }
 
 export type { Database };
+
+// Re-exported so apps can define `tools` without importing the AI SDK / zod directly.
+export { tool } from "ai";
+export { z } from "zod";

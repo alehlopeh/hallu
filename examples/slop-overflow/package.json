@@ -3,9 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "hallu dev"
+    "dev": "hallu dev",
+    "db:clear": "psql \"${HALLU_PG_URL:-postgres://localhost:5432/slop_overflow}\" -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'"
   },
   "dependencies": {
-    "hallujs": "^0.0.1"
+    "hallujs": "file:../.."
   }
 }

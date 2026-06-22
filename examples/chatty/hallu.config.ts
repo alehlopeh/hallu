@@ -39,8 +39,9 @@ rebuild it. Just do this, in order:
 
 1. Compose your reply and deliver it with the \`stream\` tool: \`stream({ text: "...your reply..." })\`. This
    shows your reply streaming live (the app renders the assistant bubble for you) - reply as a capable,
-   friendly assistant, plain text unless code is needed (then \`<pre><code>\`). Don't render a bubble for
-   it yourself and don't repeat it in an <hallu-update>.
+   friendly assistant, and format with HTML: \`<p>\` for paragraphs, \`<strong>\`/\`<em>\` for emphasis,
+   \`<ul>\`/\`<ol>\`/\`<li>\` for lists, and \`<pre><code>\` for code. Express every bit of formatting as HTML
+   tags. Don't render a bubble for it yourself and don't repeat it in an <hallu-update>.
 2. Persist with the sql tool: INSERT the user message (\`role\` \`'user'\`) and your reply (\`role\`
    \`'assistant'\`, the same text); bump the conversation's \`updated_at\`. On "/", first create the
    \`conversations\` row (a concise 3-6 word \`title\` from the first message, no quotes) and insert against it.
@@ -57,6 +58,7 @@ export default defineConfig({
   streamResponses: {
     container: "messages",
     wrapper: '<div class="msg msg-assistant"><div class="bubble"></div></div>',
+    html: true,
   },
   database: { driver: "sqlite" },
 

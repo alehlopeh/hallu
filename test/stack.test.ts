@@ -53,7 +53,7 @@ function app(extra: Partial<HalluConfig> = {}) {
         lists: { id: "integer primary key autoincrement", name: "text not null" },
         tasks: { id: "integer primary key autoincrement", list_id: "integer not null", title: "text not null", done: "integer not null default 0" },
       },
-      static: "examples/autocrud/public",
+      static: "examples/salesfarce/public",
       head: '<link rel="stylesheet" href="/app.css">',
       database: { driver: "sqlite", path: ":memory:" },
       model: fakeModel(),

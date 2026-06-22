@@ -51,6 +51,8 @@ const modelId = typeof config.model === "string" ? config.model : config.model.m
 const port = config.port ?? (process.env.PORT ? Number(process.env.PORT) : 7777);
 const app = createApp(config);
 
+// 255 is Bun's max idleTimeout; the per-call model timeout (CALL_TIMEOUT_MS in llm.ts) is held under it
+// so a slow buffered render aborts cleanly rather than having the socket dropped out from under it.
 Bun.serve({ port, fetch: app.fetch, idleTimeout: 255 });
 
 const dbLine = describeDb();

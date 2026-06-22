@@ -1,0 +1,512 @@
+@import url("https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=Oxanium:wght@600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap");
+
+:root {
+  --bg: #18181b;          /* the sky above the port: television tuned to a dead channel (grey static) */
+  --surface: #0f1626;
+  --surface-2: #15203a;
+  --ink: #dde7f5;
+  --muted: #7f8aa6;
+  --line: #1f2c44;
+  --ember: #2f9bff;       /* primary accent: bright blue */
+  --ember-dim: #1f6fcf;
+  --cyan: #5ce1ff;
+  --gold: #ffcf6b;
+  --hp: #ff4655;          /* bright red */
+  /* extended cosmic-neon palette the model may paint streamed log text with */
+  --magenta: #ff5cf0;
+  --pink: #ff8fc7;
+  --teal: #2ff0c0;
+  --emerald: #1fd6a0;
+  --mint: #9fffd8;
+  --lime: #b6ff5c;
+  --chartreuse: #d4ff4d;
+  --green: #5fd17a;
+  --grass: #8fce5b;
+  --orange: #ff9d4d;
+  --amber: #ffb347;
+  --coral: #ff7a5c;
+  --rust: #d9763a;
+  --beige: #e8d6ad;
+  --sand: #d8c48a;
+  --blue: #5b8def;
+  --sky: #7fc8ff;
+  --indigo: #8a7bff;
+  --plum: #b06cff;
+  --crimson: #ff3b5c;
+  --scarlet: #ff2e4d;
+  --ice: #aee9ff;
+  --silver: #c9d4e6;
+  --display: "Oxanium", "Iowan Old Style", Georgia, serif;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+/* dead-channel snow: a fixed grey-static layer that jitters every frame, like an untuned TV.
+   Oversized + translated in discrete steps so the grain flickers without ever showing an edge. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -25%;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.5;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='s'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.78' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23s)'/%3E%3C/svg%3E") repeat;
+  background-size: 180px 180px;
+  will-change: transform;
+  animation: tv-snow 0.7s steps(1, end) infinite;
+}
+@keyframes tv-snow {
+  0%   { transform: translateY(0); }
+  12%  { transform: translateY(6%); }
+  24%  { transform: translateY(-5%); }
+  36%  { transform: translateY(9%); }
+  48%  { transform: translateY(-8%); }
+  60%  { transform: translateY(4%); }
+  72%  { transform: translateY(-9%); }
+  84%  { transform: translateY(7%); }
+  100% { transform: translateY(-3%); }
+}
+@media (prefers-reduced-motion: reduce) { body::before { animation: none; } }
+
+/* Loading state - app-owned (config busyIndicator:false). The framework toggles hallu-busy while a command
+   resolves. The in-flight command's echo block (the last .log-line.you, which is the log's last child until
+   the response streams in) fills left-to-right like a progress bar over 5s. */
+body.hallu-busy { cursor: progress; }
+/* the most recent command block: the last .log-line.you, staying matched even after response lines stream
+   in below it (those are .log-line without .you). isolation:isolate makes the negative-z fill paint above
+   this block's background but under its text. */
+body.hallu-busy .log-line.you:not(:has(~ .log-line.you)) {
+  position: relative; overflow: hidden; isolation: isolate;
+}
+body.hallu-busy .log-line.you:not(:has(~ .log-line.you))::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  transform-origin: left center;
+  background: #000;
+  animation: cmd-fill 5s linear forwards;
+}
+@keyframes cmd-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@media (prefers-reduced-motion: reduce) { body.hallu-busy .log-line.you:not(:has(~ .log-line.you))::after { animation: none; } }
+body {
+  margin: 0;
+  overflow: hidden;
+  font-family: var(--mono);
+  color: var(--ink);
+  /* the sky above the port, the colour of television tuned to a dead channel: a CRT vignette under the
+     animated grey static painted by body::before */
+  background:
+    radial-gradient(1200px 820px at 50% 32%, #232327, #141416 76%),
+    var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+/* cosmic glow on the headline elements */
+.status::before,
+.log-line.room-name,
+.state h1,
+.online-heading,
+.room-name {
+  font-family: var(--display);
+  font-weight: 700;
+  text-shadow: 0 0 12px rgba(47, 155, 255, 0.45);
+}
+
+/* the page body is the whole terminal */
+#hallu-root {
+  height: 100vh;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* status bar */
+.status {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(10, 9, 14, 0.9);
+  font-family: var(--mono);
+  font-size: 0.85rem;
+}
+.status { order: -1; } /* always pin the status bar to the top, whatever order the model emits the shell in */
+.status::before {
+  content: "NeuroMUD";
+  font-family: "Silkscreen", monospace;
+  font-size: 1.2rem;
+  color: var(--ember);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-right: auto;
+  /* idle for 27s, then a 3s glimmer (the pulse lives in the last 10% of the 30s loop) */
+  animation: title-glimmer 30s ease-in-out infinite;
+}
+@keyframes title-glimmer {
+  0%, 90%, 100% { color: var(--ember); text-shadow: 0 0 0 transparent, 0 0 0 transparent; }
+  95% { color: #ffffff; text-shadow: 0 0 8px var(--cyan), 0 0 18px var(--ember); }
+}
+.hp, .xp {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+.hp { background: rgba(192, 86, 63, 0.16); color: var(--hp); border: 1px solid rgba(192, 86, 63, 0.4); }
+.xp { background: rgba(224, 164, 88, 0.16); color: var(--ember); border: 1px solid rgba(224, 164, 88, 0.4); }
+
+/* screen: log + minimap */
+.screen { flex: 1; display: flex; min-height: 0; }
+.log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 22px 20px;
+  font-family: var(--mono);
+  font-size: 1rem;
+  line-height: 1.7;
+  background: rgba(9, 9, 20, 0.5); /* dark cosmic panel so text stays crisp over the nebula */
+}
+.log-line { margin: 0 0 7px; max-width: 100ch; }
+.log-line.room-name {
+  color: var(--ember);
+  font-weight: 700;
+  font-size: 1.45rem;
+  margin: 22px 0 8px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  letter-spacing: 0.01em;
+}
+.log-line.room-name:first-child { margin-top: 0; padding-top: 0; border-top: none; }
+.log-line.you {
+  position: relative;
+  max-width: 55%;
+  color: var(--ember-dim);
+  background: var(--surface-2);
+  margin: 10px 0 16px;
+  padding: 4px 40px 4px 10px; /* right room for the resend button */
+  border-left: 3px solid var(--ember);
+  border-radius: 4px;
+}
+/* small circular reload button, far right of each command block; click re-runs the command */
+.cmd-redo {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--ember);
+  background: transparent;
+  border: none;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.08s ease;
+}
+.cmd-redo:hover { background: rgba(47, 155, 255, 0.22); color: var(--cyan); }
+.cmd-redo:active { transform: translateY(-50%) scale(0.9); }
+.cmd-redo svg { width: 11px; height: 11px; display: block; }
+/* Inline accents the model may use inside streamed HTML log lines - the site's cosmic neon palette. */
+.log-line .exits { color: var(--cyan); }
+/* every actionable name (and every exit) in the log is click-to-run - signal it on hover, not at rest */
+.log-line [data-player-action], .log-line .exits { cursor: pointer; }
+.log-line [data-player-action]:hover, .log-line .exits:hover { text-decoration: underline dotted; text-underline-offset: 3px; filter: brightness(1.25); }
+.log-line .item { color: var(--gold); }
+.log-line .monster { color: var(--hp); }
+.log-line .player { color: var(--ember); font-weight: 700; }
+.log-line .npc { color: var(--emerald); font-weight: 700; }
+.log-line .hit { color: var(--hp); font-weight: 700; text-shadow: 0 0 10px rgba(255, 106, 142, 0.45); }
+.log-line .gain { color: var(--gold); font-weight: 700; text-shadow: 0 0 10px rgba(255, 207, 107, 0.45); }
+.log-line em { color: var(--ember); font-style: italic; }
+/* Animation utilities the model may drop on dramatic words in streamed log lines. */
+.fx-glow { animation: fx-glow 1.8s ease-in-out infinite; }
+.fx-pulse { animation: fx-pulse 1.6s ease-in-out infinite; }
+.fx-flicker { animation: fx-flicker 2.4s steps(1, end) infinite; }
+.fx-float { display: inline-block; animation: fx-float 3s ease-in-out infinite; }
+.fx-shimmer { background-size: 200% auto; -webkit-background-clip: text; background-clip: text; color: transparent; animation: fx-shimmer 3s ease-in-out infinite alternate; }
+/* two shadow layers at every stop so the list lengths match and the glow interpolates smoothly */
+@keyframes fx-glow { 0%, 100% { text-shadow: 0 0 4px currentColor, 0 0 0 transparent; } 50% { text-shadow: 0 0 14px currentColor, 0 0 26px currentColor; } }
+@keyframes fx-pulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+@keyframes fx-flicker { 0%, 18%, 22%, 78%, 100% { opacity: 1; } 20%, 80% { opacity: 0.35; } 21% { opacity: 0.7; } }
+@keyframes fx-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes fx-shimmer { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
+.minimap {
+  flex: none;
+  width: 33%;
+  border-left: 1px solid var(--line);
+  background: radial-gradient(130% 130% at 50% 35%, #0e1426, #06060f 72%);
+  position: relative;
+}
+.minimap canvas { display: block; }
+
+/* right-side column on the game page: the online iframe above the minimap */
+.side {
+  flex: none;
+  width: 33%;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--line);
+  min-height: 0;
+}
+.side .minimap { flex: 1; width: 100%; border-left: none; min-height: 0; }
+.online-frame {
+  flex: none;
+  width: 100%;
+  height: 200px;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  background: #0a0a18;
+}
+
+/* minimap legend overlay (injected into #minimap by minimap.js) */
+.map-legend {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--muted);
+  pointer-events: none;
+}
+.map-legend > div { display: flex; align-items: center; gap: 6px; }
+/* current-world label on the minimap (set by minimap.js) */
+.map-world {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  pointer-events: none;
+  text-shadow: 0 0 10px currentColor;
+}
+.map-world.matrix { color: var(--cyan); }
+.map-world.sprawl { color: var(--gold); }
+.lg-box { width: 9px; height: 9px; border-radius: 2px; background: #b388ff; }
+.lg-dot { width: 8px; height: 8px; border-radius: 50%; }
+.lg-item { background: #ffcf6b; }
+.lg-monster { background: #c0563f; }
+.lg-npc { background: #1fd6a0; }
+.lg-player { background: #5b8def; }
+.lg-box, .lg-dot { position: relative; top: 2px; }
+
+/* command box */
+.command {
+  position: relative; /* anchor for the hover-preview overlay */
+  flex: none;
+  order: 1; /* always last in the shell, regardless of the model's DOM order */
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+/* ghost overlay (JS-sized to cover .command-input) showing the command a hovered link will run */
+.command-preview {
+  position: absolute;
+  box-sizing: border-box; /* so JS width/height = the input's border box exactly */
+  display: flex;
+  align-items: center;
+  padding: 11px 14px; /* match .command-input so the text lines up */
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  color: var(--cyan);
+  background: var(--surface-2);
+  border: 1px solid var(--ember-dim);
+  border-radius: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.14s ease;
+}
+.command-preview.show { opacity: 1; }
+.prompt { font-family: var(--mono); color: var(--ember); font-size: 1.1rem; }
+.command-input {
+  flex: 1;
+  padding: 11px 14px;
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  color: var(--ink);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.command-input::placeholder { color: #5a5650; }
+.command-input:focus { outline: none; border-color: var(--ember-dim); box-shadow: 0 0 0 3px rgba(47, 155, 255, 0.14); }
+.go {
+  padding: 11px 18px;
+  font-family: var(--mono);
+  font-size: 1.3rem;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #07050f;
+  background: linear-gradient(135deg, #2f9bff, #1e6fd0);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 0 14px rgba(47, 130, 255, 0.5);
+}
+.go:hover { filter: brightness(1.12); box-shadow: 0 0 20px rgba(110, 160, 255, 0.6); }
+.go:active { transform: translateY(1px); }
+
+/* name gate (/welcome) */
+.welcome {
+  max-width: 440px;
+  margin: 16vh auto 0;
+  padding: 0 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  text-align: center;
+}
+.welcome h1 {
+  margin: 0;
+  font-family: "Silkscreen", monospace;
+  font-size: 2rem;
+  letter-spacing: 0.05em;
+  color: var(--ember);
+}
+.welcome p { margin: 0; color: var(--muted); }
+.welcome .command-input { text-align: center; }
+.welcome .go { align-self: center; }
+
+/* world state (/state) */
+.muted { color: var(--muted); }
+.who { color: var(--ember); }
+.state { max-width: 720px; margin: 8vh auto 0; padding: 0 24px 60px; }
+.state h1 { color: var(--ember); font-size: 1.8rem; margin: 0 0 24px; letter-spacing: 0.03em; }
+.state h2 { font-size: 1rem; margin: 32px 0 12px; font-weight: 700; color: var(--ink); }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
+.stat {
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  text-align: center;
+}
+.stat-num { font-family: var(--mono); font-size: 1.9rem; font-weight: 700; color: var(--ember); }
+.stat-label {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.online-heading { color: var(--ember); font-size: 1.3rem; letter-spacing: 0.02em; margin: 4px 0 14px; }
+.online { list-style: none; padding: 0; margin: 0 0 8px; }
+.online li {
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--ember);
+  border-radius: 8px;
+  font-family: var(--mono);
+  font-size: 0.95rem;
+}
+.online li.muted { border-left-color: var(--line); }
+.online a { color: var(--ember); }
+.online a:hover { color: #f0c182; }
+.muted a { color: var(--ember-dim); text-decoration: none; border-bottom: 1px solid rgba(201, 139, 74, 0.4); }
+.muted a:hover { color: var(--ember); border-bottom-color: var(--ember); }
+/* /online page when embedded in the home-page iframe */
+.online-embed { margin: 0; padding: 12px 14px; background: #0a0a18; }
+.online-bar { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+.online-head {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ember);
+}
+.online.compact { margin: 0; }
+.online.compact li { padding: 7px 10px; margin-bottom: 6px; font-size: 0.8rem; }
+.online.compact .muted { font-size: 0.72rem; margin-left: 4px; }
+.embed-link {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  text-decoration: none;
+}
+.embed-link:hover { color: var(--ember); }
+.online-foot {
+  margin-top: 12px;
+  font-family: var(--mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+/* the minimap shown on /state is a full-width fixed-height panel (not the game's side column) */
+.state .minimap {
+  width: 100%;
+  height: 360px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin: 0 0 8px;
+}
+
+/* fixed in-game link to /state */
+.state-link {
+  position: fixed;
+  right: 16px;
+  bottom: 74px;
+  z-index: 20;
+  padding: 4px 9px;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  text-decoration: none;
+  background: rgba(10, 9, 14, 0.6);
+  border-radius: 6px;
+}
+.state-link:hover { color: var(--ember); }
+
+/* smooth transitions + a background shift when hovering a panel */
+a,
+.go,
+.command-input,
+.embed-link,
+.stat,
+.online li,
+.status,
+.command {
+  transition: color 0.16s ease, background 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease, transform 0.1s ease, filter 0.16s ease;
+}
+.stat:hover {
+  background: var(--surface-2);
+  border-color: var(--ember-dim);
+  box-shadow: 0 0 16px rgba(47, 155, 255, 0.2);
+  transform: translateY(-1px);
+}
+.online li:hover {
+  background: var(--surface-2);
+  box-shadow: 0 0 16px rgba(47, 155, 255, 0.16);
+}
+.command:hover {
+  background: var(--surface-2);
+}
+
+@media (max-width: 720px) {
+  .minimap { display: none; }
+}

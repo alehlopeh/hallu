@@ -2,10 +2,11 @@
   "name": "hallu-example-hallupedia",
   "private": true,
   "scripts": {
-    "dev": "hallu dev"
+    "dev": "hallu dev",
+    "db:clear": "bun -e \"const{rmSync}=require('fs');['hallu.db','hallu.db-wal','hallu.db-shm'].forEach(f=>rmSync(f,{force:true}))\""
   },
   "type": "module",
   "dependencies": {
-    "hallujs": "^0.0.1"
+    "hallujs": "file:../.."
   }
 }

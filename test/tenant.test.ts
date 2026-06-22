@@ -2,10 +2,11 @@
 // gets its own SQLite file. (Uses a trivial fake model that returns HTML directly.)
 
 import { test, expect, afterAll } from "bun:test";
-import { existsSync, rmSync } from "node:fs";
+import { existsSync, rmSync, readdirSync } from "node:fs";
 import { MockLanguageModelV3 } from "ai/test";
 import { createApp } from "../src/server.ts";
 import { defineConfig } from "../src/index.ts";
+import { sanitizeAccount } from "../src/backend.ts";
 
 const dbDir = `/tmp/hallu-tenant-${process.pid}`;
 
@@ -62,6 +63,20 @@ test("each account gets its own db file", async () => {
 
 test("account keys are sanitized so they can't escape the db dir", async () => {
   await app().fetch(new Request("http://x/", { headers: { "x-account": "../../etc/evil" } }));
-  expect(existsSync(`${dbDir}/______etc_evil.db`)).toBe(true); // "../../etc/evil" → dots+slashes all become _
   expect(existsSync("/tmp/etc/evil.db")).toBe(false); // never escaped dbDir
+  // The unsafe key is collapsed to a safe name (within dbDir) plus a disambiguating hash suffix.
+  const file = sanitizeAccount("../../etc/evil");
+  expect(file).not.toContain("/");
+  expect(file.startsWith("______etc_evil-")).toBe(true);
+  expect(existsSync(`${dbDir}/${file}.db`)).toBe(true);
+});
+
+test("distinct account keys that sanitize alike still get distinct db files", async () => {
+  // "a.b" and "a/b" both reduce to "a_b"; the hash suffix keeps them on separate databases.
+  const a = app();
+  await a.fetch(new Request("http://x/", { headers: { "x-account": "a.b" } }));
+  await a.fetch(new Request("http://x/", { headers: { "x-account": "a/b" } }));
+  expect(sanitizeAccount("a.b")).not.toBe(sanitizeAccount("a/b"));
+  const dbs = readdirSync(dbDir).filter((f) => f.startsWith("a_b-") && f.endsWith(".db"));
+  expect(dbs.length).toBe(2);
 });

@@ -2,18 +2,13 @@
 // like an SPA: link clicks and form submits become actions; the model's returned
 // HTML fragments are inlined in place. Only the first request is a full page load.
 (() => {
-  async function sendAction({ method, action, params }) {
-    const response = await fetch("/__hallu/action", {
+  async function post(url, body) {
+    const response = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        page: location.pathname + location.search,
-        method,
-        action,
-        params,
-      }),
+      body: JSON.stringify(body),
     });
-    if (!response.ok) throw new Error("action failed: " + response.status);
+    if (!response.ok) throw new Error("request failed: " + response.status);
 
     // Updates stream as raw HTML blocks: <hallu-update target="id">...</hallu-update> replaces an
     // element; <hallu-append target="id">...</hallu-append> appends text into one (live streamed output).
@@ -57,9 +52,15 @@
     // Streamed responses (the `stream` tool): the framework opens one by appending an app-supplied
     // wrapper into a container, streams text deltas into the wrapper's innermost element, then closes.
     let streamEl = null;
+    let streamHtml = false; // does this stream render its deltas as HTML markup, or as literal text?
+    let streamAcc = ""; // accumulated decoded HTML for an html-mode stream (re-set as innerHTML each delta)
+    // Deltas arrive entity-escaped on the wire (so they can't break the frame). Decode them back.
+    const unescapeFrame = (s) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
     const applyStreamOpen = (block) => {
       const container = document.getElementById(block.match(/\bcontainer="([^"]*)"/)?.[1] || "");
       if (!container) { missed = true; return; }
+      streamHtml = block.match(/\bhtml="([^"]*)"/)?.[1] === "1";
+      streamAcc = "";
       container.insertAdjacentHTML("beforeend", innerOf(block, "hallu-stream-open"));
       let el = container.lastElementChild;
       while (el && el.firstElementChild) el = el.firstElementChild; // text streams into the innermost node
@@ -68,7 +69,17 @@
       document.body.classList.add("hallu-patched");
     };
     const applyStreamDelta = (block) => {
-      if (streamEl) streamEl.insertAdjacentHTML("beforeend", innerOf(block, "hallu-stream-delta"));
+      if (!streamEl) return;
+      const inner = innerOf(block, "hallu-stream-delta");
+      if (streamHtml) {
+        // Render as markup: accumulate the full HTML and re-parse it each delta. The browser auto-closes
+        // partial tags, so it renders progressively and self-corrects once a tag finishes arriving.
+        streamAcc += unescapeFrame(inner);
+        streamEl.innerHTML = streamAcc;
+      } else {
+        // Literal text: the escaped entities decode to characters, no markup is interpreted.
+        streamEl.insertAdjacentHTML("beforeend", inner);
+      }
     };
     const applyStreamClose = () => {
       streamEl = null;
@@ -109,6 +120,10 @@
 
     if (navigateTo) history.pushState({}, "", navigateTo); // content already patched; just move the URL
     else if (!applied || missed) location.reload(); // server error mid-stream, or cache/DOM diverged
+  }
+
+  async function sendAction({ method, action, params }) {
+    return post("/__hallu/action", { page: location.pathname + location.search, method, action, params });
   }
 
   function busy(on) {
@@ -159,4 +174,44 @@
   });
 
   window.addEventListener("popstate", () => location.reload());
+
+  // Page-chat panel (framework chrome, present when pageChat is on): edit the page by instruction.
+  const chatRoot = document.getElementById("hallu-chat");
+  if (chatRoot) {
+    const toggle = document.getElementById("hallu-chat-toggle");
+    const form = document.getElementById("hallu-chat-form");
+    const input = document.getElementById("hallu-chat-input");
+    const log = document.getElementById("hallu-chat-log");
+    const addMsg = (who, text) => {
+      const el = document.createElement("div");
+      el.className = "hallu-chat-msg hallu-chat-" + who;
+      el.textContent = text;
+      log.appendChild(el);
+      log.scrollTop = log.scrollHeight;
+      return el;
+    };
+    toggle.addEventListener("click", () => {
+      chatRoot.classList.toggle("open");
+      if (chatRoot.classList.contains("open")) input.focus();
+    });
+    // The form is data-hallu="off", so the global submit handler skips it and we post to revise ourselves.
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = "";
+      addMsg("user", text);
+      const status = addMsg("bot", "Revising the page…");
+      busy(true);
+      try {
+        await post("/__hallu/revise", { page: location.pathname + location.search, instruction: text });
+        status.textContent = "Updated.";
+      } catch (err) {
+        console.error(err);
+        status.textContent = "That didn't work. Try rephrasing.";
+      } finally {
+        busy(false);
+      }
+    });
+  }
 })();

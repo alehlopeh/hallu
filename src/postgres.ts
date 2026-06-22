@@ -36,6 +36,12 @@ export class PgBackend implements Backend {
       for (const [table, columns] of Object.entries(this.config.tables ?? {})) {
         await this.pool.unsafe(`CREATE TABLE IF NOT EXISTS "${schema}"."${table}" (\n${columnDefs(columns)}\n)`);
       }
+      // Framework table holding page-chat edits (glob + instruction), re-applied on every matching render.
+      if (this.config.pageChat) {
+        await this.pool.unsafe(
+          `CREATE TABLE IF NOT EXISTS "${schema}".hallu_pages (id bigint generated always as identity primary key, glob text not null, instruction text not null, created_at timestamptz not null default now())`,
+        );
+      }
       if (!existed && this.config.seed) {
         const conn = await this.pool.reserve();
         try {
@@ -105,6 +111,15 @@ class PgConn implements Conn {
       (byTable.get(r.table_name) ?? byTable.set(r.table_name, []).get(r.table_name)!).push(col);
     }
     return [...byTable.entries()].map(([t, cols]) => `CREATE TABLE ${t} (\n${cols.join(",\n")}\n);`).join("\n\n");
+  }
+
+  async readRows(query: string) {
+    return (await this.conn.unsafe(query)) as Record<string, unknown>[];
+  }
+
+  async savePageEdit(glob: string, instruction: string) {
+    // Bound params: also forces a single command, so the untrusted text can't add a statement.
+    await this.conn.unsafe("INSERT INTO hallu_pages (glob, instruction) VALUES ($1, $2)", [glob, instruction]);
   }
 
   release() {

@@ -87,6 +87,7 @@ export function createApp(config: HalluConfig): Hono<Env> {
   });
 
   app.post("/__hallu/action", (c) => action(c, config, backend));
+  if (config.pageChat) app.post("/__hallu/revise", (c) => revise(c, config, backend));
   app.get("/*", (c) => renderPagePath(c, config, backend));
 
   return app;
@@ -132,6 +133,40 @@ async function renderPagePath(c: any, config: HalluConfig, backend: Backend) {
     );
     c.header("content-type", "text/html; charset=utf-8");
     return c.body(page(config, store.chrome ?? "", html));
+  } finally {
+    conn?.release();
+  }
+}
+
+// --- page-chat revise -------------------------------------------------------
+
+// The page-chat panel posts an instruction here. We save it to hallu_pages (keyed by a glob), then
+// re-render the page so the edit applies immediately, and return the new body as a hallu-root update.
+async function revise(c: any, config: HalluConfig, backend: Backend) {
+  const { cache } = c.get("store") as Store;
+  const context = c.get("ctx") as string | undefined;
+  const account = c.get("account") as string;
+  const { page, instruction } = await c.req.json();
+  const text = String(instruction ?? "").trim();
+  const { path: pagePath } = normalize(page);
+  if (!text) return c.body("");
+  // Scope the edit the same way the cache keys this page: per shape under cacheTemplate, else this path.
+  const glob = config.cacheTemplate ? templateKey(pagePath, config.routes) : pagePath;
+  info(`→ revise ${pagePath} (account ${account}): ${text}`);
+
+  let conn: Conn | undefined;
+  try {
+    conn = await backend.acquire(account);
+    await conn.savePageEdit(glob, text);
+    // Drop only the pages this edit's glob covers, so they re-render with it; leave the rest cached.
+    cache.invalidateWhere((p) => patternToRegex(glob).test(p.split("?")[0]));
+    const started = Date.now();
+    const directives = await loadDirectives(conn, pagePath, config);
+    const { html } = await renderPage(config, conn, pagePath, context, undefined, directives);
+    if (html) cache.put(config.cacheTemplate ? templateKey(pagePath, config.routes) : pagePath, html);
+    info(`revise ${pagePath}: re-rendered in ${Date.now() - started}ms, ${directives.length} edit(s) applied`);
+    c.header("content-type", "text/html; charset=utf-8");
+    return c.body(serializeUpdate(rootUpdate(html)));
   } finally {
     conn?.release();
   }
@@ -195,6 +230,8 @@ async function action(c: any, config: HalluConfig, backend: Backend) {
           if (mutated) invalidateAfterWrite(cache, pagePath, config);
         }
         deferAfterWrite(backend, account, config, writes);
+        invalidateSchemaChange(cache, writes); // drop only the altered table's cached pages and templates
+        if (editsChanged(config, writes)) await invalidateEditedPages(cache, await getConn());
         info(
           `action ${method} ${actionPath}: streamed in ${Date.now() - started}ms, ` +
             `updating [${updates.map((u) => u.target).join(", ")}]${invalidationNote(config, mutated)}`,
@@ -213,6 +250,8 @@ async function action(c: any, config: HalluConfig, backend: Backend) {
         if (mutated) invalidateAfterWrite(cache, pagePath, config);
       }
       deferAfterWrite(backend, account, config, writes);
+      invalidateSchemaChange(cache, writes); // drop only the altered table's cached pages and templates
+      if (editsChanged(config, writes)) await invalidateEditedPages(cache, await getConn());
 
       info(
         `action ${method} ${actionPath}: done in ${Date.now() - started}ms, ` +
@@ -256,16 +295,63 @@ async function renderOrServe(
     // (e.g. all `/wiki/*` articles). The first matching page pins it; the rest render against it.
     const key = templateKey(path, config.routes);
     const template = cache.get(key); // undefined after a `fresh` clear or for a shape's first render
-    const { html, mutated, writes } = await renderPage(config, await getConn(), path, context, template);
+    const conn = await getConn();
+    const directives = await loadDirectives(conn, path, config);
+    const { html, mutated, writes } = await renderPage(config, conn, path, context, template, directives);
     if (template === undefined && html) cache.put(key, html); // pin the first render as the template
     return { html, source: template === undefined ? "scratch" : "template", mutated, writes };
   }
   const cached = cache.get(path);
   if (cached !== undefined) return { html: cached, source: "cache", mutated: false, writes: [] };
-  const { html, mutated, writes } = await renderPage(config, await getConn(), path, context);
+  const conn = await getConn();
+  const directives = await loadDirectives(conn, path, config);
+  const { html, mutated, writes } = await renderPage(config, conn, path, context, undefined, directives);
   if (html) cache.put(path, html); // never cache an empty render - let the next visit retry
   if (mutated) invalidateAfterWrite(cache, path, config);
   return { html, source: "scratch", mutated, writes };
+}
+
+// Page-chat edits whose glob matches this path, in save order - re-applied on every render so they stick.
+async function loadDirectives(conn: Conn, path: string, config: HalluConfig): Promise<string[]> {
+  if (!config.pageChat) return [];
+  try {
+    const rows = (await conn.readRows("SELECT glob, instruction FROM hallu_pages ORDER BY id")) as {
+      glob: string;
+      instruction: string;
+    }[];
+    const pathname = path.split("?")[0];
+    return rows.filter((r) => patternToRegex(r.glob).test(pathname)).map((r) => r.instruction);
+  } catch {
+    return []; // table not present yet
+  }
+}
+
+// A column change (addFields ALTER) makes only the affected table's index/record pages stale. Map the
+// altered table to the first path segment so just that table's cached pages and templates are dropped.
+const ALTER_TABLE = /^\s*alter\s+table\s+["'`]?(\w+)["'`]?/i;
+function firstSegment(path: string): string {
+  return path.split("?")[0].split("/").filter(Boolean)[0] ?? "";
+}
+function invalidateSchemaChange(cache: PageCache, writes: SqlEvent[]): void {
+  const tables = writes
+    .map((w) => w.query.match(ALTER_TABLE)?.[1]?.toLowerCase())
+    .filter((t): t is string => !!t);
+  if (tables.length) cache.invalidateWhere((p) => tables.includes(firstSegment(p)));
+}
+
+// A write to hallu_pages (a saved/edited page-chat instruction) changes which edits apply, so the cached
+// pages those edits cover must re-render. Drop only the entries matching a current glob.
+function editsChanged(config: HalluConfig, writes: SqlEvent[]): boolean {
+  return !!config.pageChat && writes.some((w) => /\bhallu_pages\b/i.test(w.query));
+}
+async function invalidateEditedPages(cache: PageCache, conn: Conn): Promise<void> {
+  try {
+    const rows = (await conn.readRows("SELECT DISTINCT glob FROM hallu_pages")) as { glob: string }[];
+    const regexes = rows.map((r) => patternToRegex(r.glob));
+    if (regexes.length) cache.invalidateWhere((p) => regexes.some((re) => re.test(p.split("?")[0])));
+  } catch {
+    // table absent or unreadable - nothing to invalidate
+  }
 }
 
 // Describes, for the log, what a write did to the cache.
@@ -324,11 +410,13 @@ function patternToRegex(pattern: string): RegExp {
   return new RegExp(`^${body}$`);
 }
 
-// Browser-initiated probes (icons, manifests, .well-known) must never reach the model.
+// Browser-initiated probes (icons, manifests, .well-known) must never reach the model. Match known
+// asset extensions only - NOT "any path segment with a dot", which would 404 legitimate content slugs
+// like /users/jane.doe or /products/3.5-inch.
+const ASSET_EXT = /\.(ico|png|jpe?g|gif|svg|webp|avif|bmp|css|js|mjs|cjs|map|wasm|woff2?|ttf|otf|eot|txt|xml|webmanifest|pdf)$/i;
 function isAssetProbe(path: string): boolean {
   if (path.startsWith("/.well-known/")) return true;
-  const base = path.split("/").pop() ?? "";
-  return base.includes(".");
+  return ASSET_EXT.test(path);
 }
 
 function pathWithQuery(c: any): string {

@@ -1,9 +1,9 @@
 {
-  "name": "hallu-example-chatty",
+  "name": "hallu-example-salesfarce",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "hallu dev",
+    "dev": "hallu dev --hot",
     "db:clear": "bun -e \"const{rmSync}=require('fs');['hallu.db','hallu.db-wal','hallu.db-shm'].forEach(f=>rmSync(f,{force:true}))\""
   },
   "dependencies": {
