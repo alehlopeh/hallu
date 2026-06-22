@@ -71,6 +71,8 @@ A Neuromancer-themed MUD.
 
 ## Get started
 
+Requires [Bun](https://bun.sh) (`curl -fsSL https://bun.sh/install | bash`).
+
 ```bash
 bunx hallujs generate myapp   # defaults: Anthropic + SQLite
 cd myapp && bun install

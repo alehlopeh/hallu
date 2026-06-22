@@ -122,7 +122,7 @@ async function generate(argv: string[]): Promise<void> {
   }
 
   const PROVIDERS = {
-    anthropic: { pkg: "@ai-sdk/anthropic", import: `import { anthropic } from "@ai-sdk/anthropic";`, preamble: "\n", model: `anthropic("claude-opus-4-8")`, env: "ANTHROPIC_API_KEY" as string | null },
+    anthropic: { pkg: "@ai-sdk/anthropic", import: `import { anthropic } from "@ai-sdk/anthropic";`, preamble: "\n", model: `anthropic("claude-haiku-4-5")`, env: "ANTHROPIC_API_KEY" as string | null },
     openai: { pkg: "@ai-sdk/openai", import: `import { openai } from "@ai-sdk/openai";`, preamble: "\n", model: `openai("gpt-4o")`, env: "OPENAI_API_KEY" as string | null },
     ollama: { pkg: "@ai-sdk/openai-compatible", import: `import { createOpenAICompatible } from "@ai-sdk/openai-compatible";`, preamble: `\nconst ollama = createOpenAICompatible({ name: "ollama", baseURL: "http://localhost:11434/v1" });\n\n`, model: `ollama("llama3.2")`, env: null as string | null },
   };

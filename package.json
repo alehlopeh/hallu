@@ -1,17 +1,21 @@
 {
   "name": "hallujs",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A web framework where an LLM is the entire backend: you define the tables, it renders every page.",
   "license": "MIT",
   "type": "module",
-  "workspaces": ["examples/*"],
+  "workspaces": [
+    "examples/*"
+  ],
   "bin": {
-    "hallu": "./src/cli.ts"
+    "hallu": "src/cli.ts"
   },
   "exports": {
     ".": "./src/index.ts"
   },
-  "files": ["src"],
+  "files": [
+    "src"
+  ],
   "scripts": {
     "test": "bun test",
     "security": "bun run scripts/security-check.ts",
