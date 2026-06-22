@@ -80,7 +80,7 @@ echo "ANTHROPIC_API_KEY=sk-ant-..." > .env
 bun dev
 ```
 
-`generate` takes flags for the backend and provider:  `--postgres`, and `--anthropic` (default) / `--openai` / `--ollama`. 
+`generate` takes flags for the backend and provider: `--postgres`, and `--anthropic` (default) / `--openai` / `--ollama`.
 
 
 ## Configuration
@@ -132,8 +132,9 @@ Postgres `schema` defaults to `public`.
 ## Caveats
 
 - It's slow: A page is a model call, sometimes several. Pages take ~2s to load on Haiku. It's a website powered by a tool calling LLM though. What'd you expect?
-- It costs tokens: Every cold request costs tokens. There's a cache, so it's not insane, and Haiku  is relatively cheap and does the job perfectly.
-- It's non-deterministic: The same URL renders slightly differently on every cold load and cache invalidation. The security model isn't perfect The framework passes untrusted input to an LLM and asks it to write arbitrary SQL.  That's dangerous. There's a script in the repo that tests common SQL-injection  techniques. But yeah, it's an LLM hallucinating SQL. Don't use this for anything important.
+- It costs tokens: Every cold request hits the model. There's a cache, so it's not insane, and Haiku is relatively cheap and does the job perfectly.
+- It's non-deterministic: The same URL renders slightly differently on every cold load and cache invalidation.
+- The security model isn't perfect: The framework passes untrusted input to an LLM and asks it to write arbitrary SQL. That's dangerous. There's a script in the repo that tests common SQL-injection techniques. But yeah, it's an LLM hallucinating SQL. Don't use this for anything important.
 
 ## Develop
 
