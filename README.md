@@ -50,6 +50,10 @@ Pin the schema yourself. Declare your tables in the config and the framework cre
 
 ## Examples
 
+<p>
+  <img src="demo/neuromud.gif" alt="NeuroMUD demo" width="99.5%" />
+</p>
+
 ### Hallupedia
 A "real world" encyclopedia. Every article is generated on-demand from the model's knowledge graph, and the same model generates the SQL and html.
 
