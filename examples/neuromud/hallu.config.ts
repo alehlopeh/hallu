@@ -2,7 +2,6 @@ import { defineConfig } from "hallujs";
 import { anthropic } from "@ai-sdk/anthropic";
 import { Database } from "bun:sqlite";
 import { getCookie, setCookie } from "hono/cookie";
-// Reused across every room/entity creation site so naming stays consistent: read existing names, pick fresh.
 const naming = `Give every room, item, target, and NPC you create a fresh name, distinct within the batch and
 from every name already in its table. Before naming, as part of your parallel read batch SELECT name FROM that
 table (rooms, items, monsters, or npcs) to see the names already in use, and pick one outside that list, drawn
@@ -342,31 +341,18 @@ export default defineConfig({
 
   description,
 
-  // The whole game is one page; commands are streamed actions (no navigation).
   routes: ["/", "/u/*", "db"],
 
-  // Own the loading look: the framework just toggles hallu-busy/hallu-patched; the CSS lives in app.css.
   busyIndicator: false,
 
-  // Re-render "/" live every load (the world is shared and always changing), and give streamed actions a
-  // stable shell DOM to patch, the same pairing Chatty uses.
   cacheTemplate: true,
 
-  // A move can read the room, its neighbours and exits, then write a room plus several exit rows, well
-  // past the default 8-step budget. The first-start seed packs each table into ONE multi-row INSERT, so a
-  // handful of writes plus the opening narration fit here.
   maxSteps: 24,
 
-  // A touch above the 0.35 default for livelier prose/styling, but low enough to keep the stateful logic
-  // honest: at 0.85 the model narrated rooms/NPCs it never persisted, desyncing from the DB.
   temperature: 0.45,
 
-  // Stream the model's narration straight into the log, one line per `stream` call (like a MUD terminal).
-  // html: true lets each streamed line carry HTML (styled spans, emphasis), rendered live as it arrives.
   streamResponses: { container: "log", wrapper: '<div class="log-line"></div>', html: true },
 
-  // The world's SHAPE is fixed and known; only its rows are generated. Coordinates are plain integers;
-  // exits deliberately point at rooms that aren't built yet, so they must NOT reference rooms.
   tables: {
     rooms: {
       x: "integer not null",
@@ -440,19 +426,13 @@ export default defineConfig({
     },
   },
 
-  // One room per coordinate (dedup at the DB level), and fast neighbour/exit lookups.
   seed: (db) => {
     db.run("CREATE UNIQUE INDEX IF NOT EXISTS rooms_xyz ON rooms (x, y, z)");
-    db.run("CREATE UNIQUE INDEX IF NOT EXISTS exits_xyz_dir ON exits (x, y, z, direction)"); // one passage per direction; portals (NULL direction) are exempt
+    db.run("CREATE UNIQUE INDEX IF NOT EXISTS exits_xyz_dir ON exits (x, y, z, direction)");
     db.run("CREATE INDEX IF NOT EXISTS exits_to ON exits (to_x, to_y, to_z)");
-    db.run("CREATE INDEX IF NOT EXISTS npcs_xyz ON npcs (x, y, z)"); // fast lookup of who inhabits a room
-    db.run("CREATE INDEX IF NOT EXISTS items_xyz ON items (x, y, z)"); // ground items by room
-    db.run("CREATE INDEX IF NOT EXISTS items_held ON items (held_by)"); // a player's inventory
-    // A grid passage is fully determined by its direction: the destination is one step that way, and every
-    // grid passage has a mirror. This trigger makes both structural so the model can't get them wrong, on
-    // any grid-exit insert it OVERWRITES to_x/to_y/to_z to match the direction, then auto-inserts the reverse
-    // passage. Portals (NULL or non-grid direction) are left exactly as written. INSERT OR IGNORE stops the
-    // reverse from duplicating; recursive triggers are off by default, so the reverse insert doesn't re-fire.
+    db.run("CREATE INDEX IF NOT EXISTS npcs_xyz ON npcs (x, y, z)");
+    db.run("CREATE INDEX IF NOT EXISTS items_xyz ON items (x, y, z)");
+    db.run("CREATE INDEX IF NOT EXISTS items_held ON items (held_by)");
     db.run(`CREATE TRIGGER IF NOT EXISTS exits_grid_mirror
       AFTER INSERT ON exits
       WHEN NEW.direction IN ('north','south','east','west','up','down')
@@ -475,19 +455,14 @@ export default defineConfig({
       END`);
   },
 
-  // ONE shared world (a single account everyone shares), with per-player identity carried in `context`.
-  // No cookie -> deny, so the framework redirects to `loginPath` (/welcome) to ask for a name; that form
-  // sets the cookie and creates the player. Returning visitors (cookie present) come straight back in.
   identify: (c) => {
     const id = getCookie(c, "adventurer");
     const name = getCookie(c, "adventurer_name");
-    if (!id || !name) return null; // no name yet -> /welcome asks for one; players are NEVER auto-named
+    if (!id || !name) return null;
     return { account: "world", context: `The human player sending commands this session is named "${name}" (player id "${id}").` };
   },
   loginPath: "/welcome",
 
-  // Data feed for the 3D minimap: the model never renders the map, it just keeps the rows accurate.
-  // This reads the shared world DB directly and returns the rooms, grid passages, and the caller's room.
   configure: (app) => {
     app.get("/__map", (c) => {
       const id = getCookie(c, "adventurer");
@@ -509,7 +484,6 @@ export default defineConfig({
              FROM rooms r`,
           )
           .all(id ?? "");
-        // Only passages BETWEEN existing rooms: dedup, and never draw a line to a room not built yet.
         const exits = db.query("SELECT DISTINCT e.x, e.y, e.z, e.to_x, e.to_y, e.to_z FROM exits e JOIN rooms r ON r.x = e.to_x AND r.y = e.to_y AND r.z = e.to_z WHERE e.direction IS NOT NULL").all();
         return c.json({ player, rooms, exits });
       } catch {
@@ -519,8 +493,6 @@ export default defineConfig({
       }
     });
 
-    // Name gate: a plain page (no SPA runtime) shown to first-time visitors with no cookie. It sets the
-    // `adventurer` cookie and creates the player with the name they chose, then sends them in.
     app.get("/welcome", (c) =>
       c.html(`<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>NeuroMUD</title>
@@ -535,17 +507,14 @@ export default defineConfig({
     app.post("/welcome", async (c) => {
       const body = await c.req.parseBody();
       const name = (String(body.name ?? "").trim() || "Wanderer").slice(0, 40);
-      const id = getCookie(c, "adventurer") ?? crypto.randomUUID().slice(0, 8); // reuse an existing id so re-entering a name doesn't orphan the player
+      const id = getCookie(c, "adventurer") ?? crypto.randomUUID().slice(0, 8);
       const opts = { httpOnly: true, sameSite: "Lax" as const, path: "/", maxAge: 60 * 60 * 24 * 30 };
       setCookie(c, "adventurer", id, opts);
-      // Don't INSERT here: the framework creates the tables lazily on the first model render, which
-      // hasn't happened yet, so the players table may not exist. Stash the name and let the model create
-      // the player with it on that first render, when the tables are guaranteed to exist.
+      // Tables are created lazily on first model render, so don't INSERT the player here; stash the name.
       setCookie(c, "adventurer_name", name, opts);
       return c.redirect("/");
     });
 
-    // World-state dashboard: counts + who's online. Plain HTML, read straight from the shared world DB.
     app.get("/state", (c) => {
       let db: Database;
       try {
@@ -593,7 +562,6 @@ export default defineConfig({
       }
     });
 
-    // Compact list of online players, meant to be embedded in an iframe. Self-refreshes every 5 seconds.
     app.get("/online", (c) => {
       let db: Database;
       try {

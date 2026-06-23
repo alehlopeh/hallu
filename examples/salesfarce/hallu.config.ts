@@ -59,22 +59,14 @@ export default defineConfig({
   autoSchema: true,
   navLinks: true,
 
-  // The CRM "custom field" control: lets users add a column to any object's table from its list page.
   addFields: true,
 
-  // Floating "edit this page" chat: users revise any page by instruction; edits persist in hallu_pages.
   pageChat: true,
 
-  // The model re-renders every view live against the current data and reuses a pinned template per path,
-  // so freshly created records show up immediately and list views are never stale.
   cacheTemplate: true,
 
-  // First visit to a list view creates the table and seeds a set of rows (one INSERT per row) before
-  // reading them back, which overruns the default 8-step cap. Give the tool loop room.
   maxSteps: 24,
 
-  // Search streams its matches in: each result is streamed into the #search-results container, wrapped in
-  // a .result row. html:true so each streamed result can be a link to its record.
   streamResponses: { container: "search-results", wrapper: '<div class="result"></div>', html: true },
 
   design: `Style this enterprise CRM with the classes below; a stylesheet is loaded.

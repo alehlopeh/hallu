@@ -88,8 +88,6 @@ somewhere to stream into.)`,
   head: `<link rel="stylesheet" href="/app.css">
 <script>
   const pin = () => { const m = document.getElementById("messages"); if (m) m.scrollTop = m.scrollHeight; };
-  // Optimistically show the user's own message the instant they hit send, before the model replies -
-  // so it always appears first. The model only streams its reply (it does not echo the user message).
   document.addEventListener("submit", (e) => {
     const form = e.target;
     if (!form.matches || !form.matches("form.composer")) return;
@@ -108,7 +106,6 @@ somewhere to stream into.)`,
     messages.appendChild(row);
     pin();
   });
-  // Keep the transcript pinned to the bottom as a reply streams in / finishes.
   document.addEventListener("hallu:finalize", pin);
 </script>`,
   static: "./public",

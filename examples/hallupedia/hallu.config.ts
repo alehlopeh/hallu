@@ -38,7 +38,7 @@ function rebuildLinks(db: Database) {
   const pairs = new Set<string>();
   for (const { slug, body } of rows)
     for (const m of (body ?? "").matchAll(/\/wiki\/([a-z0-9-]+)/gi))
-      if (m[1] !== slug) pairs.add(`${slug} ${m[1]}`); // dedupe per (from,to)
+      if (m[1] !== slug) pairs.add(`${slug} ${m[1]}`);
   db.run("DELETE FROM links");
   const ins = db.query("INSERT INTO links (from_slug, to_slug) VALUES (?, ?)");
   for (const p of pairs) {
@@ -84,6 +84,6 @@ the most recently updated REAL articles, newest first.`,
   },
 
   afterWrite: (db, events) => {
-    if (events.some((e) => /\barticles\b/i.test(e.query))) rebuildLinks(db); // only when articles changed
+    if (events.some((e) => /\barticles\b/i.test(e.query))) rebuildLinks(db);
   },
 });

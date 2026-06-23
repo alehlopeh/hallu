@@ -1,9 +1,9 @@
 # Hallu: this web app does not exist
 
 <p>
-  <img src="demo/hallupedia.gif" alt="Hallupedia demo" width="48%" />
+  <img src="demo/hallupedia.gif" alt="Hallupedia demo" width="49%" />
   &nbsp;
-  <img src="demo/chatty.gif" alt="Chatty demo" width="48%" />
+  <img src="demo/chatty.gif" alt="Chatty demo" width="49%" />
 </p>
 
 **Hallu is a web framework where an LLM hallucinates your entire app.**
@@ -54,6 +54,9 @@ Pin the schema yourself. Declare your tables in the config and the framework cre
   <img src="demo/neuromud.gif" alt="NeuroMUD demo" width="99.5%" />
 </p>
 
+### NeuroMUD
+A Neuromancer-themed MUD.
+
 ### Hallupedia
 A "real world" encyclopedia. Every article is generated on-demand from the model's knowledge graph, and the same model generates the SQL and html.
 
@@ -69,13 +72,11 @@ A schema-less CRM. Visit an object and the model designs and creates its table a
 ### Shamazon
 A store where the whole catalog is invented on demand: products, prices, reviews, then saved so the page is stable on return.
 
-### NeuroMUD
-A Neuromancer-themed MUD.
 
 
 ## Get started
 
-Requires [Bun](https://bun.sh) (`curl -fsSL https://bun.sh/install | bash`).
+Requires [Bun](https://bun.sh).
 
 ```bash
 bunx hallujs generate myapp   # defaults: Anthropic + SQLite
@@ -85,6 +86,10 @@ bun dev
 ```
 
 `generate` takes flags for the backend and provider: `--postgres`, and `--anthropic` (default) / `--openai` / `--ollama`.
+
+### Vibes
+
+Vibing on a Hallu app is kind of like vibe coding through a game of telephone. Use `bun quality hallu.config.ts` to sanity check your vibed vibes.
 
 
 ## Configuration
@@ -139,10 +144,3 @@ Postgres `schema` defaults to `public`.
 - It costs tokens: Every cold request hits the model. There's a cache, so it's not insane, and Haiku is relatively cheap and does the job perfectly.
 - It's non-deterministic: The same URL renders slightly differently on every cold load and cache invalidation.
 - The security model isn't perfect: The framework passes untrusted input to an LLM and asks it to write arbitrary SQL. That's dangerous. There's a script in the repo that tests common SQL-injection techniques. But yeah, it's an LLM hallucinating SQL. Don't use this for anything important.
-
-## Develop
-
-```bash
-bun install
-bun test        # offline: runs against a stubbed model, fast and deterministic
-```

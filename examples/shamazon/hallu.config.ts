@@ -56,8 +56,6 @@ export default defineConfig({
 
   routes: ["/", "/c/*", "/product/*", "/search", "/cart"],
 
-  // Only adding to cart mutates state. Drop the home and cart pages on a write; leave the
-  // (read-only) product and department pages served from cache.
   invalidateOnWrite: ["/", "/cart"],
 
   design: `This is an online store - style it like a retail site, dense and scannable. A stylesheet is
